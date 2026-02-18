@@ -78,14 +78,14 @@
       try {
         const p = JSON.parse(data);
         if (p.type === 'history') {
-          messages = p.messages.map((m: any) => ({ ...m, id: m.id ?? crypto.randomUUID() }));
+          messages = p.messages.map((m: any) => ({ ...m, id: m.id }));
           setTimeout(scrollBottom, 50);
         } else if (p.type === 'message') {
-          const msg = { ...p, id: p.id ?? crypto.randomUUID() };
+          const msg = { ...p, id: p.id };
           messages = [...messages, msg];
           setTimeout(scrollBottom, 30);
         } else if (p.type === 'system') {
-          messages = [...messages, { id: crypto.randomUUID(), text: p.text, sys: true }];
+          messages = [...messages, { id: p.id, text: p.text, sys: true }];
           setTimeout(scrollBottom, 30);
         } else if (p.type === 'error') {
           alert(p.error);
