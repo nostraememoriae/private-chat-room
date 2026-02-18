@@ -7,12 +7,7 @@
     "skipLibCheck": true,
     "lib": [
       "ESNext"
-    ],
-    "types": [
-      "hono"
-    ],
-    "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx"
+    ]
   },
   "include": [
     "*.ts",
