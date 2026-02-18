@@ -26,7 +26,7 @@
 
   // ── Lifecycle ───────────────────────────────────────────────────────────
   onMount(() => {
-    if (document.cookie.includes('auth=')) connect();
+    connect();
   });
 
   onDestroy(() => ws?.close());
@@ -99,9 +99,10 @@
     messageText = '';
   }
 
-  function logout() {
-    document.cookie = 'auth=; Max-Age=0; path=/;';
-    location.reload();
+  async function logout() {
+    await fetch('/logout', { method: 'POST' });
+    ws?.close();
+    screen = 'login';
   }
 
   function scrollBottom() {

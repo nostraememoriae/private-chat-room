@@ -81,7 +81,7 @@ app.post('/auth', async (c) => {
 
     // Set cookie
     setCookie(c, 'auth', token, {
-      httpOnly: false, // Allow JS to read it for username display
+      httpOnly: true,
       secure: true,
       sameSite: 'Strict',
       maxAge: 60 * 60 * 24 * 30,
@@ -92,6 +92,17 @@ app.post('/auth', async (c) => {
   }
 
   return c.json({ error: 'Invalid TOTP code' }, 401)
+})
+
+app.post('/logout', (c) => {
+  setCookie(c, 'auth', '', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Strict',
+    maxAge: 0,
+    path: '/'
+  })
+  return c.json({ success: true })
 })
 
 // WebSocket endpoint
