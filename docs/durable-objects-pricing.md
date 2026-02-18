@@ -25,6 +25,14 @@ This is where the pricing model gets interesting, especially for chat apps.
 Every time you call a Durable Object from a Worker (e.g., `room.fetch()`), it counts as **1 Request**.
 *   **Quota**: 100,000 / day (Free Tier).
 
+### Clarification: Does this share the Worker Quota?
+**NO.** Durable Objects have their own separate request quota.
+*   **Worker Request Limit**: 100,000 / day (Your standard `fetch` handler).
+*   **Durable Object Request Limit**: 100,000 / day (Calls to `stub.fetch()` or `stub.connect()`).
+
+This means you effectively have **200,000 "interactions"** free per day if you use both layers efficiently.
+100k for the front door (Worker) + 100k for the back office (Durable Object).
+
 ### B. Duration (Thinking Time)
 You are billed for **Gigabyte-Seconds (GB-s)** of duration. This is calculated as:
 `Time Active (seconds) × Memory Allocated (128MB fixed)`
