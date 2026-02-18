@@ -15,14 +15,14 @@ const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
  * Decode a Base32-encoded string (RFC 4648) into a Uint8Array.
  * Throws if the input contains characters outside the alphabet.
  */
-function base32Decode(input: string): Uint8Array {
+function base32Decode(input: string): Uint8Array<ArrayBuffer> {
   // Normalize: uppercase, strip padding and whitespace
   const clean = input.toUpperCase().replace(/[=\s]/g, '')
 
   let bits = 0
   let value = 0
   let index = 0
-  const output = new Uint8Array(Math.floor((clean.length * 5) / 8))
+  const output = new Uint8Array<ArrayBuffer>(new ArrayBuffer(Math.floor((clean.length * 5) / 8)))
 
   for (const char of clean) {
     const charIndex = BASE32_ALPHABET.indexOf(char)
@@ -47,8 +47,8 @@ function base32Decode(input: string): Uint8Array {
  * JavaScript numbers are safe up to 2^53, which is more than enough
  * for TOTP counters (current Unix time / 30).
  */
-function counterToBytes(counter: number): Uint8Array {
-  const bytes = new Uint8Array(8)
+function counterToBytes(counter: number): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array<ArrayBuffer>(new ArrayBuffer(8))
   // Write as big-endian 64-bit integer (high 32 bits are always 0 for TOTP)
   const high = Math.floor(counter / 0x100000000)
   const low = counter >>> 0
@@ -67,7 +67,7 @@ function counterToBytes(counter: number): Uint8Array {
  * HOTP — RFC 4226 §5.3
  * Computes a 6-digit HMAC-SHA1 one-time password for the given secret and counter.
  */
-async function hotp(secretBytes: Uint8Array, counter: number): Promise<string> {
+async function hotp(secretBytes: Uint8Array<ArrayBuffer>, counter: number): Promise<string> {
   const key = await crypto.subtle.importKey(
     'raw',
     secretBytes,
@@ -104,7 +104,8 @@ async function timingSafeEqual(a: string, b: string): Promise<boolean> {
     crypto.subtle.digest('SHA-256', encoder.encode(a)),
     crypto.subtle.digest('SHA-256', encoder.encode(b)),
   ])
-  return crypto.subtle.timingSafeEqual(hashA, hashB)
+  // timingSafeEqual is a Cloudflare Workers extension not present in standard DOM SubtleCrypto types
+  return (crypto.subtle as unknown as { timingSafeEqual(a: ArrayBuffer, b: ArrayBuffer): boolean }).timingSafeEqual(hashA, hashB)
 }
 
 /**
@@ -133,7 +134,7 @@ export async function verifyToken(secret: string, token: string): Promise<boolea
   if (cleaned === null) return false
 
   // Decode the secret; if this fails, it'll throw. That's desirable for configuration errors.
-  let secretBytes: Uint8Array
+  let secretBytes: Uint8Array<ArrayBuffer>
   try {
      secretBytes = base32Decode(secret)
   } catch(e) {
