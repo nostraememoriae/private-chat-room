@@ -105,6 +105,23 @@ app.post('/logout', (c) => {
   return c.json({ success: true })
 })
 
+app.get('/me', async (c) => {
+  const token = getCookie(c, 'auth')
+  if (!token) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  try {
+    if (!c.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET is not set')
+    }
+    const payload = await verify(token, c.env.JWT_SECRET, 'HS256')
+    return c.json({ username: payload.username })
+  } catch (e) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+})
+
 // WebSocket endpoint
 app.get('/ws', async (c) => {
   const upgrade = c.req.header('Upgrade')

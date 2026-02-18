@@ -25,8 +25,15 @@
   }
 
   // ── Lifecycle ───────────────────────────────────────────────────────────
-  onMount(() => {
-    connect();
+  onMount(async () => {
+    try {
+      const res = await fetch('/me');
+      if (res.ok) {
+        const data = await res.json();
+        myUsername = data.username;
+        connect();
+      }
+    } catch {}
   });
 
   onDestroy(() => ws?.close());
