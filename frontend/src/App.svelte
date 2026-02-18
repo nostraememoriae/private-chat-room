@@ -71,13 +71,14 @@
       try {
         const p = JSON.parse(data);
         if (p.type === 'history') {
-          messages = p.messages;
+          messages = p.messages.map((m: any) => ({ ...m, id: m.id ?? crypto.randomUUID() }));
           setTimeout(scrollBottom, 50);
         } else if (p.type === 'message') {
-          messages = [...messages, p];
+          const msg = { ...p, id: p.id ?? crypto.randomUUID() };
+          messages = [...messages, msg];
           setTimeout(scrollBottom, 30);
         } else if (p.type === 'system') {
-          messages = [...messages, { text: p.text, sys: true }];
+          messages = [...messages, { id: crypto.randomUUID(), text: p.text, sys: true }];
           setTimeout(scrollBottom, 30);
         } else if (p.type === 'error') {
           alert(p.error);
@@ -187,7 +188,7 @@
       <p class="empty">No messages yet. Say hi! 👋</p>
     {/if}
 
-    {#each messages as msg (msg.id ?? (msg.text + (msg.timestamp ?? Math.random())))}
+    {#each messages as msg (msg.id)}
       {#if msg.sys}
         <div class="sys">{msg.text}</div>
       {:else}
