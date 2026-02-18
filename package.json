@@ -2,8 +2,7 @@
   "name": "private-chat-room",
   "type": "module",
   "scripts": {
-    "build": "vite build --config frontend/vite.config.ts",
-    "dev:frontend": "vite dev --config frontend/vite.config.ts",
+    "build": "vite build",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings"
@@ -12,6 +11,7 @@
     "hono": "^4.11.9"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.25.1",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "svelte": "^5.51.3",
     "svelte-check": "^4.4.0",
