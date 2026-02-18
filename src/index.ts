@@ -115,7 +115,6 @@ app.get('/ws', async (c) => {
   const id = c.env.rooms.idFromName('MainRoom')
   const room = c.env.rooms.get(id)
 
-  // Pass username via URL search params — safer and more explicit than headers for DO forwarding
   const url = new URL(c.req.url)
   url.searchParams.set('username', c.get('user'))
 
