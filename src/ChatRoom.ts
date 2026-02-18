@@ -25,7 +25,6 @@ const MSG_TYPE = {
 // Storage / connection constants
 const HISTORY_LIMIT = 50;
 const DEFAULT_USERNAME = "Anonymous";
-const STORAGE_KEY_RANDOM_SUFFIX_LENGTH = 5;
 
 type ChatMessage = {
   id: string;
@@ -102,11 +101,12 @@ export class ChatRoom extends DurableObject {
 
     try {
       const data = JSON.parse(message as string);
+      const id = uuidv7();
 
       if (data.text) {
         // Create full message object
         const fullMessage: ChatMessage = {
-          id: uuidv7(),
+          id,
           user: state.username,
           text: data.text,
           timestamp: Date.now(),
@@ -116,12 +116,7 @@ export class ChatRoom extends DurableObject {
         this.broadcast({ type: MSG_TYPE.MESSAGE, ...fullMessage });
 
         // Save to storage (fire and forget promise, or await if critical)
-        // Use current timestamp as key for simple sorting
-        // To avoid collisions/overwrites, use timestamp + random suffix or ULID
-        // For simple chat, Date.now() is mostly fine but risky.
-        // Better: customized sortable key.
-        const key = `${Date.now()}-${Math.random().toString(36).substr(2, STORAGE_KEY_RANDOM_SUFFIX_LENGTH)}`;
-        await this.ctx.storage.put(key, JSON.stringify(fullMessage));
+        await this.ctx.storage.put(id, JSON.stringify(fullMessage));
       }
     } catch (err) {
       ws.send(JSON.stringify({ type: MSG_TYPE.ERROR, error: "Invalid message format" } satisfies OutboundMessage));
