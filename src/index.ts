@@ -77,14 +77,14 @@ app.post('/auth', async (c) => {
     if (!secret) {
       return c.json({ error: 'JWT Secret not configured' }, 500)
     }
-    const token = await sign({ username, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 }, secret) // 30 days
+    const token = await sign({ username, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 1 }, secret) // 1 day
 
     // Set cookie
     setCookie(c, 'auth', token, {
       httpOnly: true,
       secure: true,
       sameSite: 'Strict',
-      maxAge: 60 * 60 * 24 * 30,
+      maxAge: 60 * 60 * 24 * 1,
       path: '/'
     })
 
