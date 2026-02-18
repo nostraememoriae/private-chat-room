@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { v7 as uuidv7 } from "uuid";
 
 // Define the shape of our per-connection state
 interface SessionState {
@@ -105,7 +106,7 @@ export class ChatRoom extends DurableObject {
       if (data.text) {
         // Create full message object
         const fullMessage: ChatMessage = {
-          id: crypto.randomUUID(),
+          id: uuidv7(),
           user: state.username,
           text: data.text,
           timestamp: Date.now(),
@@ -139,7 +140,7 @@ export class ChatRoom extends DurableObject {
   }
 
   private broadcastSystem(text: string) {
-    this.broadcast({ id: crypto.randomUUID(), type: MSG_TYPE.SYSTEM, text });
+    this.broadcast({ id: uuidv7(), type: MSG_TYPE.SYSTEM, text });
   }
 
   private broadcast(msg: OutboundMessage) {
