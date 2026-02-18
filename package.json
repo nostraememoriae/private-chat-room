@@ -2,6 +2,8 @@
   "name": "private-chat-room",
   "type": "module",
   "scripts": {
+    "build": "vite build --config frontend/vite.config.ts",
+    "dev:frontend": "vite dev --config frontend/vite.config.ts",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings"
