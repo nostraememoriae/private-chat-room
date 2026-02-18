@@ -19,17 +19,7 @@ A secure, private chat room for two people, built with Cloudflare Workers, Durab
 2.  **Configure Secrets**:
     You need to set up your TOTP secrets.
     - Generate two base32 secrets (e.g. using `qrencode` or an online generator).
-    - Add them to `wrangler.jsonc` (for local dev) or use `wrangler secret put` (for production).
-    
-    **Local Development**:
-    Edit `wrangler.jsonc`:
-    ```jsonc
-    "vars": {
-      "TOTP_SECRET_1": "JBSWY3DPEHPK3PXP", // Example Secret 1
-      "TOTP_SECRET_2": "JBSWY3DPEHPK3PXQ", // Example Secret 2
-      "JWT_SECRET": "your-256-bit-secret"
-    }
-    ```
+    - Add them to `.env` (for local dev) or use `wrangler secret put` (for production).
 
 3.  **Run Locally**:
     ```bash

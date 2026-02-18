@@ -6,11 +6,6 @@
   // "compatibility_flags": [
   //   "nodejs_compat"
   // ],
-  "vars": {
-    "TOTP_SECRET_1": "WXTYJKYD2WN4PFHWLURDUM7ISTKE5CW3",
-    "TOTP_SECRET_2": "LZHX2FMXHBG7KPQ5APGYBZIOVPNPBSGJ",
-    "JWT_SECRET": "your-jwt-secret"
-  },
   "durable_objects": {
     "bindings": [
       {
