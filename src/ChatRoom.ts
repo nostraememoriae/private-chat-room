@@ -62,7 +62,12 @@ export class ChatRoom extends DurableObject {
     server.send(JSON.stringify({ type: "history", messages: history }));
 
     // Broadcast that someone joined
-    this.broadcast({ type: "system", text: `${username} joined the room.` });
+    const systemMessage = {
+      id: crypto.randomUUID(),
+      type: "system",
+      text: `${username} joined the room.`,
+    }
+    this.broadcast(systemMessage);
 
     return new Response(null, { status: 101, webSocket: client });
   }
