@@ -13,6 +13,32 @@ interface CloudflareBindings {
   rooms: DurableObjectNamespace<ChatRoom>;
 }
 
+// Message types
+const MSG_TYPE = {
+  HISTORY: "history",
+  MESSAGE: "message",
+  SYSTEM: "system",
+  ERROR: "error",
+} as const;
+
+// Storage / connection constants
+const HISTORY_LIMIT = 50;
+const DEFAULT_USERNAME = "Anonymous";
+const STORAGE_KEY_RANDOM_SUFFIX_LENGTH = 5;
+
+type ChatMessage = {
+  id: string;
+  user: string;
+  text: string;
+  timestamp: number;
+};
+
+type OutboundMessage =
+  | { type: typeof MSG_TYPE.HISTORY; messages: ChatMessage[] }
+  | ({ type: typeof MSG_TYPE.MESSAGE } & ChatMessage)
+  | { type: typeof MSG_TYPE.SYSTEM; id: string; text: string }
+  | { type: typeof MSG_TYPE.ERROR; error: string };
+
 export class ChatRoom extends DurableObject {
   // Store active sessions in memory
   // In Hibernation API, we don't need a Map<WebSocket, SessionState> because
@@ -35,7 +61,7 @@ export class ChatRoom extends DurableObject {
 
     // Get the username passed from the Worker (e.g. via headers or URL params)
     const url = new URL(request.url);
-    const username = url.searchParams.get("username") || "Anonymous";
+    const username = url.searchParams.get("username") || DEFAULT_USERNAME;
 
     // Create the WebSocket pair
     const pair = new WebSocketPair();
@@ -47,27 +73,24 @@ export class ChatRoom extends DurableObject {
     // Initial state for this connection
     const state: SessionState = {
       username,
-      joinedAt: Date.now()
+      joinedAt: Date.now(),
     };
 
     // Serialize this state so it survives hibernation
     server.serializeAttachment(state);
 
     // Send the last few messages to the new user from storage
-    const messages = await this.ctx.storage.list({ limit: 50, reverse: true });
+    const messages = await this.ctx.storage.list({ limit: HISTORY_LIMIT, reverse: true });
     // messages is a Map. We need to send them in chronological order.
     // The keys are timestamps (or sortable IDs).
-    const history = Array.from(messages.values()).reverse().map(str => JSON.parse(str as string));
-    
-    server.send(JSON.stringify({ type: "history", messages: history }));
+    const history = Array.from(messages.values())
+      .reverse()
+      .map((str) => JSON.parse(str as string) as ChatMessage);
+
+    server.send(JSON.stringify({ type: MSG_TYPE.HISTORY, messages: history } satisfies OutboundMessage));
 
     // Broadcast that someone joined
-    const systemMessage = {
-      id: crypto.randomUUID(),
-      type: "system",
-      text: `${username} joined the room.`,
-    }
-    this.broadcast(systemMessage);
+    this.broadcastSystem(`${username} joined the room.`);
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -75,39 +98,39 @@ export class ChatRoom extends DurableObject {
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
     // Restore state
     const state = ws.deserializeAttachment() as SessionState;
-    
+
     try {
       const data = JSON.parse(message as string);
-      
+
       if (data.text) {
         // Create full message object
-        const fullMessage = {
+        const fullMessage: ChatMessage = {
           id: crypto.randomUUID(),
           user: state.username,
           text: data.text,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
 
         // Broadcast to everyone
-        this.broadcast({ type: "message", ...fullMessage });
+        this.broadcast({ type: MSG_TYPE.MESSAGE, ...fullMessage });
 
         // Save to storage (fire and forget promise, or await if critical)
         // Use current timestamp as key for simple sorting
         // To avoid collisions/overwrites, use timestamp + random suffix or ULID
         // For simple chat, Date.now() is mostly fine but risky.
         // Better: customized sortable key.
-        const key = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+        const key = `${Date.now()}-${Math.random().toString(36).substr(2, STORAGE_KEY_RANDOM_SUFFIX_LENGTH)}`;
         await this.ctx.storage.put(key, JSON.stringify(fullMessage));
       }
     } catch (err) {
-      ws.send(JSON.stringify({ type: "error", error: "Invalid message format" }));
+      ws.send(JSON.stringify({ type: MSG_TYPE.ERROR, error: "Invalid message format" } satisfies OutboundMessage));
     }
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
     const state = ws.deserializeAttachment() as SessionState;
     // Broadcast leave
-    this.broadcast({ type: "system", text: `${state.username} left the room.` });
+    this.broadcastSystem(`${state.username} left the room.`);
   }
 
   async webSocketError(ws: WebSocket, error: unknown) {
@@ -115,7 +138,11 @@ export class ChatRoom extends DurableObject {
     // console.error("WebSocket error:", error);
   }
 
-  private broadcast(msg: any) {
+  private broadcastSystem(text: string) {
+    this.broadcast({ id: crypto.randomUUID(), type: MSG_TYPE.SYSTEM, text });
+  }
+
+  private broadcast(msg: OutboundMessage) {
     const msgStr = JSON.stringify(msg);
     // Get all connected WebSockets from the state
     for (const ws of this.ctx.getWebSockets()) {
