@@ -56,6 +56,10 @@ app.post('/auth', async (c) => {
     verifyToken(secret2, code)
   ])
 
+  if (valid1 && valid2) {
+    return c.json({ error: 'Just a small technical issue :), try again after a new code is generated.' }, 401)
+  }
+
   if (valid1) {
     username = 'User1'
   } else if (valid2) {
