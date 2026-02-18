@@ -22,7 +22,6 @@ app.use('/ws', async (c, next) => {
 
   try {
     const payload = await verify(token, c.env.JWT_SECRET || 'fallback_secret', 'HS256')
-    // @ts-ignore
     c.set('user', payload.username as string) // Store username in context
     await next()
   } catch (e) {
@@ -98,7 +97,6 @@ app.get('/ws', async (c) => {
   // c.get('user') was set by middleware
   // We need to cast 'c' to something that has 'user' or just use 'any' context 
   // Hono context typing is tricky here without explicit Variable definition.
-  // @ts-ignore
   const user = c.get('user') as string
   url.searchParams.set('username', user)
 
