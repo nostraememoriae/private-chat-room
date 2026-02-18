@@ -28,7 +28,10 @@ app.use('/ws', async (c, next) => {
   }
 
   try {
-    const payload = await verify(token, c.env.JWT_SECRET || 'fallback_secret', 'HS256')
+    if (!c.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET is not set')
+    }
+    const payload = await verify(token, c.env.JWT_SECRET, 'HS256')
     c.set('user', payload.username as string) // Store username in context
     await next()
   } catch (e) {
@@ -42,8 +45,12 @@ app.post('/auth', async (c) => {
   
   // Verify against secrets
   // We check both secrets.
-  const secret1 = c.env.TOTP_SECRET_1 || 'secret1missing'
-  const secret2 = c.env.TOTP_SECRET_2 || 'secret2missing'
+  const secret1 = c.env.TOTP_SECRET_1
+  const secret2 = c.env.TOTP_SECRET_2
+
+  if (!secret1 || !secret2) {
+    return c.json({ error: 'TOTP Secret not configured' }, 500)
+  }
 
   // TOTP verification using standalone implementation
   let username = null
@@ -66,7 +73,10 @@ app.post('/auth', async (c) => {
 
   if (username) {
     // Generate JWT
-    const secret = c.env.JWT_SECRET || 'fallback_secret'
+    const secret = c.env.JWT_SECRET
+    if (!secret) {
+      return c.json({ error: 'JWT Secret not configured' }, 500)
+    }
     const token = await sign({ username, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 }, secret) // 30 days
 
     // Set cookie
