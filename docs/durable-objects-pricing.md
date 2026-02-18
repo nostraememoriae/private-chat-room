@@ -25,13 +25,19 @@ This is where the pricing model gets interesting, especially for chat apps.
 Every time you call a Durable Object from a Worker (e.g., `room.fetch()`), it counts as **1 Request**.
 *   **Quota**: 100,000 / day (Free Tier).
 
-### Clarification: Does this share the Worker Quota?
-**NO.** Durable Objects have their own separate request quota.
-*   **Worker Request Limit**: 100,000 / day (Your standard `fetch` handler).
-*   **Durable Object Request Limit**: 100,000 / day (Calls to `stub.fetch()` or `stub.connect()`).
+### Clarification: Does this share the Worker Quota? (The "Independent Buckets" Rule)
+**NO.** Cloudflare's quotas are generally **independent services**. Using one does not eat into another.
 
-This means you effectively have **200,000 "interactions"** free per day if you use both layers efficiently.
-100k for the front door (Worker) + 100k for the back office (Durable Object).
+| Service | Free Quota (Daily) | Is it Shared? |
+| :--- | :--- | :--- |
+| **Worker Requests** | 100,000 | ❌ No (Independent) |
+| **Durable Object Requests** | 100,000 | ❌ No (Independent) |
+| **KV Reads** | 100,000 | ❌ No (Independent) |
+| **D1 Rows Read** | 5,000,000 | ❌ No (Independent) |
+| **DO Storage Rows Read** | 5,000,000 | ❌ No (Independent) |
+| **R2 Class A Ops** | 1,000,000 / month | ❌ No (Independent) |
+
+**Key Takeaway**: A complex app using Workers + DO + D1 + R2 + KV effectively has access to **millions** of free operations because each service draws from its own bucket. They do not pool together.
 
 ### B. Duration (Thinking Time)
 You are billed for **Gigabyte-Seconds (GB-s)** of duration. This is calculated as:
