@@ -11,6 +11,13 @@ type Variables = {
   user: string
 }
 
+interface CloudflareBindings {
+  JWT_SECRET: string
+  TOTP_SECRET_1: string
+  TOTP_SECRET_2: string
+  rooms: DurableObjectNamespace
+}
+
 const app = new Hono<{ Bindings: CloudflareBindings, Variables: Variables }>()
 
 // Middleware to check authentication for /ws
