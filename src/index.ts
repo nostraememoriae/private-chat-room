@@ -5,8 +5,6 @@ import { verifyToken } from './totp'
 
 export { ChatRoom } from './ChatRoom'
 
-
-// Environment bindings
 type Variables = {
   user: string
 }
@@ -18,114 +16,98 @@ interface CloudflareBindings {
   rooms: DurableObjectNamespace
 }
 
-const app = new Hono<{ Bindings: CloudflareBindings, Variables: Variables }>()
+type AppContext = { Bindings: CloudflareBindings; Variables: Variables }
+
+const app = new Hono<AppContext>()
+
+// --- Helpers ---
+
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'Strict' as const,
+  path: '/',
+}
+
+async function verifyAuthCookie(token: string, secret: string): Promise<string> {
+  if (!secret) throw new Error('JWT_SECRET is not set')
+  const payload = await verify(token, secret, 'HS256')
+  return payload.username as string
+}
+
+// --- Middleware ---
 
 // Middleware to check authentication for /ws
 app.use('/ws', async (c, next) => {
   const token = getCookie(c, 'auth')
-  if (!token) {
-    return c.text('Unauthorized', 401)
-  }
+  if (!token) return c.text('Unauthorized', 401)
 
   try {
-    if (!c.env.JWT_SECRET) {
-      throw new Error('JWT_SECRET is not set')
-    }
-    const payload = await verify(token, c.env.JWT_SECRET, 'HS256')
-    c.set('user', payload.username as string) // Store username in context
+    c.set('user', await verifyAuthCookie(token, c.env.JWT_SECRET))
     await next()
-  } catch (e) {
+  } catch {
     return c.text('Unauthorized', 401)
   }
 })
 
-// Auth endpoint
+// --- Routes ---
+
 app.post('/auth', async (c) => {
   const { code } = await c.req.json()
-  
-  // Verify against secrets
-  // We check both secrets.
-  const secret1 = c.env.TOTP_SECRET_1
-  const secret2 = c.env.TOTP_SECRET_2
+  const { TOTP_SECRET_1: secret1, TOTP_SECRET_2: secret2, JWT_SECRET } = c.env
 
   if (!secret1 || !secret2) {
     return c.json({ error: 'TOTP Secret not configured' }, 500)
   }
 
-  // TOTP verification using standalone implementation
-  let username = null
-  
-  // Run checks in parallel
+  // We check both secrets. Run checks in parallel.
   const [valid1, valid2] = await Promise.all([
     verifyToken(secret1, code),
-    verifyToken(secret2, code)
+    verifyToken(secret2, code),
   ])
 
   if (valid1 && valid2) {
     return c.json({ error: 'Just a small technical issue :), try again after a new code is generated.' }, 401)
   }
 
-  if (valid1) {
-    username = 'User1'
-  } else if (valid2) {
-    username = 'User2'
-  }
+  const username = 
+    valid1 ? 'User1' :
+    valid2 ? 'User2' :
+    null
 
-  if (username) {
-    // Generate JWT
-    const secret = c.env.JWT_SECRET
-    if (!secret) {
-      return c.json({ error: 'JWT Secret not configured' }, 500)
-    }
-    const token = await sign({ username, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 1 }, secret) // 1 day
+  if (!username) return c.json({ error: 'Invalid TOTP code' }, 401)
 
-    // Set cookie
-    setCookie(c, 'auth', token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'Strict',
-      maxAge: 60 * 60 * 24 * 1,
-      path: '/'
-    })
+  if (!JWT_SECRET) return c.json({ error: 'JWT Secret not configured' }, 500)
 
-    return c.json({ success: true, username })
-  }
+  // Generate JWT
+  const token = await sign(
+    { username, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 },
+    JWT_SECRET
+  )
 
-  return c.json({ error: 'Invalid TOTP code' }, 401)
+  setCookie(c, 'auth', token, { ...COOKIE_OPTIONS, maxAge: 60 * 60 * 24 })
+  return c.json({ success: true, username })
 })
 
 app.post('/logout', (c) => {
-  setCookie(c, 'auth', '', {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'Strict',
-    maxAge: 0,
-    path: '/'
-  })
+  setCookie(c, 'auth', '', { ...COOKIE_OPTIONS, maxAge: 0 })
   return c.json({ success: true })
 })
 
 app.get('/me', async (c) => {
   const token = getCookie(c, 'auth')
-  if (!token) {
-    return c.json({ error: 'Unauthorized' }, 401)
-  }
+  if (!token) return c.json({ error: 'Unauthorized' }, 401)
 
   try {
-    if (!c.env.JWT_SECRET) {
-      throw new Error('JWT_SECRET is not set')
-    }
-    const payload = await verify(token, c.env.JWT_SECRET, 'HS256')
-    return c.json({ username: payload.username })
-  } catch (e) {
+    const username = await verifyAuthCookie(token, c.env.JWT_SECRET)
+    return c.json({ username })
+  } catch {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 })
 
-// WebSocket endpoint
 app.get('/ws', async (c) => {
-  const upgrade = c.req.header('Upgrade')
-  if (!upgrade || upgrade !== 'websocket') {
+  if (c.req.header('Upgrade') !== 'websocket') {
     return c.text('Expected Upgrade: websocket', 426)
   }
 
@@ -133,23 +115,12 @@ app.get('/ws', async (c) => {
   const id = c.env.rooms.idFromName('MainRoom')
   const room = c.env.rooms.get(id)
 
-  // Pass the username to the DO via URL params since headers might be stripped/standardized
-  // However, standardized Request object preserves headers usually.
-  // But URL search params is safer and explicit for DO.
-  // We need to re-construct the request URL to include the username?
-  // Actually, we can just fetch the DO with a modified URL.
+  // Pass username via URL search params — safer and more explicit than headers for DO forwarding
   const url = new URL(c.req.url)
-  // c.get('user') was set by middleware
-  // We need to cast 'c' to something that has 'user' or just use 'any' context 
-  // Hono context typing is tricky here without explicit Variable definition.
-  const user = c.get('user') as string
-  url.searchParams.set('username', user)
+  url.searchParams.set('username', c.get('user'))
 
   // Forward the request to the Durable Object
-  // We use the new Request object to ensure we pass everything correctly
-  const newReq = new Request(url.toString(), c.req.raw)
-  
-  return room.fetch(newReq)
+  return room.fetch(new Request(url.toString(), c.req.raw))
 })
 
 export default app
