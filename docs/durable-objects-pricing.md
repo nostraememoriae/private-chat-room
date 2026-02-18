@@ -37,6 +37,12 @@ Every time you call a Durable Object from a Worker (e.g., `room.fetch()`), it co
 | **DO Storage Rows Read** | 5,000,000 | ❌ No (Independent) |
 | **R2 Class A Ops** | 1,000,000 / month | ❌ No (Independent) |
 
+**Source & Citation**:
+> *"If you exceed any one of the free tier limits, further operations **of that type** will fail with an error."*
+> — [Cloudflare Workers & Durable Object Pricing Docs](https://developers.cloudflare.com/workers/platform/pricing)
+
+This confirms that limits are applied **per type of operation**. Consuming your Worker Request limit only affects Worker Requests, not your Durable Object capacity.
+
 **Key Takeaway**: A complex app using Workers + DO + D1 + R2 + KV effectively has access to **millions** of free operations because each service draws from its own bucket. They do not pool together.
 
 ### B. Duration (Thinking Time)
