@@ -1,8 +1,6 @@
 import { Hono } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { sign, verify } from 'hono/jwt'
-// @ts-ignore
-import html from './chat.html'
 import { verifyToken } from './totp'
 
 export { ChatRoom } from './ChatRoom'
@@ -30,12 +28,6 @@ app.use('/ws', async (c, next) => {
   } catch (e) {
     return c.text('Unauthorized', 401)
   }
-})
-
-
-// Serve the single page app
-app.get('/', (c) => {
-  return c.html(html)
 })
 
 // Auth endpoint
