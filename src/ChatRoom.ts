@@ -46,10 +46,21 @@ export class ChatRoom extends DurableObject {
   // However, for broadcasting to *other* sockets, we need to get *all* sockets.
   // this.ctx.getWebSockets() gives us all active sockets.
 
+  sql: SqlStorage;
+
   constructor(ctx: DurableObjectState, env: CloudflareBindings) {
     super(ctx, env);
-    // Initialize storage if needed (e.g. for message history)
-    // this.ctx.blockConcurrencyWhile(async () => { ... }) if needed
+    this.sql = ctx.storage.sql;
+
+    // Initialize storage
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS messages(
+        id TEXT PRIMARY KEY,
+        user TEXT,
+        text TEXT,
+        timestamp INTEGER
+      );
+    `);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -80,12 +91,13 @@ export class ChatRoom extends DurableObject {
     server.serializeAttachment(state);
 
     // Send the last few messages to the new user from storage
-    const messages = await this.ctx.storage.list({ limit: HISTORY_LIMIT, reverse: true });
-    // messages is a Map. We need to send them in chronological order.
-    // The keys are timestamps (or sortable IDs).
-    const history = Array.from(messages.values())
-      .reverse()
-      .map((str) => JSON.parse(str as string) as ChatMessage);
+    // Get the newest messages first, then reverse for chronological display
+    const messages = this.sql
+      .exec("SELECT * FROM messages ORDER BY timestamp DESC LIMIT ?", HISTORY_LIMIT)
+      .toArray() as ChatMessage[];
+    
+    // Reverse to send oldest first
+    const history = messages.reverse();
 
     server.send(JSON.stringify({ type: MSG_TYPE.HISTORY, messages: history } satisfies OutboundMessage));
 
@@ -115,8 +127,14 @@ export class ChatRoom extends DurableObject {
         // Broadcast to everyone
         this.broadcast({ type: MSG_TYPE.MESSAGE, ...fullMessage });
 
-        // Save to storage (fire and forget promise, or await if critical)
-        await this.ctx.storage.put(id, JSON.stringify(fullMessage));
+        // Save to storage using SQL
+        this.sql.exec(
+          "INSERT INTO messages (id, user, text, timestamp) VALUES (?, ?, ?, ?)",
+          fullMessage.id,
+          fullMessage.user,
+          fullMessage.text,
+          fullMessage.timestamp
+        );
       }
     } catch (err) {
       ws.send(JSON.stringify({ type: MSG_TYPE.ERROR, error: "Invalid message format" } satisfies OutboundMessage));
