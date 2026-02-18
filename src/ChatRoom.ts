@@ -6,6 +6,13 @@ interface SessionState {
   joinedAt: number;
 }
 
+interface CloudflareBindings {
+  JWT_SECRET: string;
+  TOTP_SECRET_1: string;
+  TOTP_SECRET_2: string;
+  rooms: DurableObjectNamespace<ChatRoom>;
+}
+
 export class ChatRoom extends DurableObject {
   // Store active sessions in memory
   // In Hibernation API, we don't need a Map<WebSocket, SessionState> because

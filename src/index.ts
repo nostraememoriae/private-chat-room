@@ -1,8 +1,6 @@
 import { Hono } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { sign, verify } from 'hono/jwt'
-// @ts-ignore
-import html from './chat.html'
 import { verifyToken } from './totp'
 
 export { ChatRoom } from './ChatRoom'
@@ -11,6 +9,13 @@ export { ChatRoom } from './ChatRoom'
 // Environment bindings
 type Variables = {
   user: string
+}
+
+interface CloudflareBindings {
+  JWT_SECRET: string
+  TOTP_SECRET_1: string
+  TOTP_SECRET_2: string
+  rooms: DurableObjectNamespace
 }
 
 const app = new Hono<{ Bindings: CloudflareBindings, Variables: Variables }>()
@@ -24,18 +29,11 @@ app.use('/ws', async (c, next) => {
 
   try {
     const payload = await verify(token, c.env.JWT_SECRET || 'fallback_secret', 'HS256')
-    // @ts-ignore
     c.set('user', payload.username as string) // Store username in context
     await next()
   } catch (e) {
     return c.text('Unauthorized', 401)
   }
-})
-
-
-// Serve the single page app
-app.get('/', (c) => {
-  return c.html(html)
 })
 
 // Auth endpoint
@@ -55,6 +53,10 @@ app.post('/auth', async (c) => {
     verifyToken(secret1, code),
     verifyToken(secret2, code)
   ])
+
+  if (valid1 && valid2) {
+    return c.json({ error: 'Just a small technical issue :), try again after a new code is generated.' }, 401)
+  }
 
   if (valid1) {
     username = 'User1'
@@ -102,7 +104,6 @@ app.get('/ws', async (c) => {
   // c.get('user') was set by middleware
   // We need to cast 'c' to something that has 'user' or just use 'any' context 
   // Hono context typing is tricky here without explicit Variable definition.
-  // @ts-ignore
   const user = c.get('user') as string
   url.searchParams.set('username', user)
 

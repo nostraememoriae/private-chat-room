@@ -6,6 +6,9 @@
   // "compatibility_flags": [
   //   "nodejs_compat"
   // ],
+  "assets": {
+    "not_found_handling": "single-page-application"
+  },
   "durable_objects": {
     "bindings": [
       {
@@ -18,13 +21,6 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["ChatRoom"]
-    }
-  ],
-  "rules": [
-    {
-      "type": "Text",
-      "globs": ["**/*.html"],
-      "fallthrough": true
     }
   ]
 }
