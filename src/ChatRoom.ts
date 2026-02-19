@@ -28,7 +28,7 @@ const DEFAULT_USERNAME = "Anonymous";
 type ChatMessage = {
   id: number;
   type: string;
-  user: string | null;
+  user: string;
   text: string;
   timestamp: number;
 };
@@ -151,7 +151,6 @@ export class ChatRoom extends DurableObject {
       "INSERT INTO messages (type, user, text, timestamp) VALUES (?, ?, ?, ?) RETURNING id",
       msg.type,
       msg.user,
-      msg.user ?? null,
       msg.text,
       msg.timestamp,
     );
@@ -160,7 +159,6 @@ export class ChatRoom extends DurableObject {
 
   private broadcastSystem(text: string) {
     const msg = this.insert({ type: MSG_TYPE.SYSTEM, user: "system", text, timestamp: Date.now() });
-    const msg = this.insert({ type: MSG_TYPE.SYSTEM, user: null, text, timestamp: Date.now() });
     this.broadcast({ type: MSG_TYPE.SYSTEM, id: msg.id, text: msg.text });
   }
 
