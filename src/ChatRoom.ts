@@ -1,5 +1,4 @@
 import { DurableObject } from "cloudflare:workers";
-import { v7 as uuidv7 } from "uuid";
 
 // Define the shape of our per-connection state
 interface SessionState {
@@ -27,7 +26,8 @@ const HISTORY_LIMIT = 50;
 const DEFAULT_USERNAME = "Anonymous";
 
 type ChatMessage = {
-  id: string;
+  id: number;
+  type: string;
   user: string;
   text: string;
   timestamp: number;
@@ -36,7 +36,7 @@ type ChatMessage = {
 type OutboundMessage =
   | { type: typeof MSG_TYPE.HISTORY; messages: ChatMessage[] }
   | ({ type: typeof MSG_TYPE.MESSAGE } & ChatMessage)
-  | { type: typeof MSG_TYPE.SYSTEM; id: string; text: string }
+  | { type: typeof MSG_TYPE.SYSTEM; id?: number; text: string }
   | { type: typeof MSG_TYPE.ERROR; error: string };
 
 export class ChatRoom extends DurableObject {
@@ -55,7 +55,8 @@ export class ChatRoom extends DurableObject {
     // Initialize storage
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS messages(
-        id TEXT PRIMARY KEY,
+        id INTEGER PRIMARY KEY,
+        type TEXT,
         user TEXT,
         text TEXT,
         timestamp INTEGER
@@ -113,28 +114,21 @@ export class ChatRoom extends DurableObject {
 
     try {
       const data = JSON.parse(message as string);
-      const id = uuidv7();
 
       if (data.text) {
         // Create full message object
-        const fullMessage: ChatMessage = {
-          id,
+        const fullMessage = {
+          type: MSG_TYPE.MESSAGE,
           user: state.username,
           text: data.text,
           timestamp: Date.now(),
-        };
-
-        // Broadcast to everyone
-        this.broadcast({ type: MSG_TYPE.MESSAGE, ...fullMessage });
+        } satisfies Omit<ChatMessage, "id">;
 
         // Save to storage using SQL
-        this.sql.exec(
-          "INSERT INTO messages (id, user, text, timestamp) VALUES (?, ?, ?, ?)",
-          fullMessage.id,
-          fullMessage.user,
-          fullMessage.text,
-          fullMessage.timestamp
-        );
+        const insertedRow = this.insert(fullMessage);
+
+        // Broadcast to everyone
+        this.broadcast({id: insertedRow.id, ...fullMessage });
       }
     } catch (err) {
       ws.send(JSON.stringify({ type: MSG_TYPE.ERROR, error: "Invalid message format" } satisfies OutboundMessage));
@@ -152,8 +146,20 @@ export class ChatRoom extends DurableObject {
     // console.error("WebSocket error:", error);
   }
 
+  private insert(msg: Omit<ChatMessage, 'id'>): ChatMessage {
+    const result = this.sql.exec(
+      "INSERT INTO messages (type, user, text, timestamp) VALUES (?, ?, ?, ?) RETURNING id",
+      msg.type,
+      msg.user,
+      msg.text,
+      msg.timestamp,
+    );
+    return { ...msg, id: (result.one() as { id: number }).id };
+  }
+
   private broadcastSystem(text: string) {
-    this.broadcast({ id: uuidv7(), type: MSG_TYPE.SYSTEM, text });
+    const msg = this.insert({ type: MSG_TYPE.SYSTEM, user: "system", text, timestamp: Date.now() });
+    this.broadcast({ type: MSG_TYPE.SYSTEM, id: msg.id, text: msg.text });
   }
 
   private broadcast(msg: OutboundMessage) {
